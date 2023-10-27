@@ -1,1 +1,9 @@
-kivy
+kivy==2.2.*
+kivymd==1.1.*
+torch==2.1.*
+numpy==1.26.*
+gymnasium[atari]==0.29.*
+gymnasium[accept-rom-license]==0.29.*
+opencv-python==4.8.1.*
+imageio[ffmpeg]==2.31.*
+matplotlib== 3.8.*
