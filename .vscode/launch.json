@@ -10,14 +10,11 @@
       "request": "launch",
       "program": "${workspaceFolder}/src/main.py",
       "console": "integratedTerminal",
-      "justMyCode": true,
+      "justMyCode": false,
       "autoReload": {
         "enable": true,
-        "include": [
-          "**/*.py",
-          "**/*.pyw"
-        ]
-      },
+        "include": ["**/*.py", "**/*.pyw"]
+      }
     }
   ]
 }

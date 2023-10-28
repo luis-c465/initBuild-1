@@ -13,5 +13,5 @@ class GameDict(TypedDict):
 
 
 gameList: dict[str, GameDict]
-with open("games.json", "r") as f:
+with open("src/assets/games.json", "r") as f:
     gameList = load(f)
