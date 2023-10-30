@@ -3,8 +3,8 @@ from kivy.lang import Builder
 from kivymd.app import MDApp
 
 from src.gameList import gameList
-from src.ui.game import Game
-from kivy.core.image.img_pil import ImageLoaderPIL
+
+# from src.ui.game import Game
 
 KV = """
 MDScreen:
@@ -24,13 +24,13 @@ MDScreen:
             row_force_default: True
 
             Image:
-                source: "src/assets/sus.gif"
+                source: "src/assets/zaxxon.zip"
                 size_hint: None, None
                 size: 500, 500
                 allow_stretch: True
                 keep_ratio: False
-                anim_delay: -1
-                anim_loop: 1
+                anim_delay: 0
+                anim_loop: -1
 
 """
 
