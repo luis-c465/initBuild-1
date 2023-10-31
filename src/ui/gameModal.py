@@ -6,7 +6,6 @@ from kivymd.uix.boxlayout import MDBoxLayout
 
 from gameList import GameDict
 from ui.game import Game
-from ui.hyperLink import MyHyperlink
 
 KV = """
 <GameModal>:
