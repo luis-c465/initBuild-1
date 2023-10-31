@@ -1,5 +1,5 @@
 from json import load
-from typing import TypedDict
+from typing import TypedDict, List
 
 
 class GameDict(TypedDict):
@@ -10,6 +10,8 @@ class GameDict(TypedDict):
     default_mode: str
     default_difficulty: str
     url: str
+    modes: List[str]
+    difficulties: List[str]
 
 
 gameList: dict[str, GameDict]

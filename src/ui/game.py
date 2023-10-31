@@ -4,6 +4,7 @@ from kivy.lang import Builder
 from kivy.properties import (
     BooleanProperty,
     ColorProperty,
+    ObjectProperty,
     OptionProperty,
     StringProperty,
     VariableListProperty,
@@ -39,8 +40,8 @@ KV = """
             ((0, 0) if root.overlap else (0, box.height)) \
             if root.box_position == "footer" else \
             (0, 0)
-        on_release: root.dispatch("on_release")
-        on_press: root.dispatch("on_press")
+        on_release: root.dispatch("on_release", root.data)
+        on_press: root.dispatch("on_press", root.data)
         width: root.width
         height: root.height
 
@@ -249,6 +250,7 @@ class Game(SusSmartTile):
     game_id = StringProperty("")
     description = StringProperty("")
     name = StringProperty("")
+    data = ObjectProperty()
 
     def __init__(self, data: GameDict, *args, **kwargs):
         self.data = data
@@ -259,8 +261,3 @@ class Game(SusSmartTile):
         self.description = f"{self.name}: {shorten(self.data['description'], width=47, placeholder='...')}"
 
         super().__init__(*args, **kwargs)
-
-    def on_press(self, *args):
-        print(self.data["name"])
-
-        return super().on_press(*args)
