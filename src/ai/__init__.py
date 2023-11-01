@@ -1,1 +1,1 @@
-from src.ai.train import train
+from src.ai.train import ThreadedTrainer
