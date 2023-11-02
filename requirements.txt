@@ -8,3 +8,4 @@ opencv-python==4.8.1.*
 imageio[ffmpeg]==2.31.*
 matplotlib== 3.8.*
 nptyping==2.5.*
+humanize==4.8.*

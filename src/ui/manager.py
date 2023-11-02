@@ -1,11 +1,11 @@
 import multiprocessing
-import time
-from queue import Empty
-from threading import Thread
+from typing import List
 
 from kivy.clock import Clock
 from kivy.lang import Builder
-from kivy.properties import NumericProperty
+from kivy.properties import StringProperty
+from kivy.uix.label import Label
+from kivy_garden.graph import Graph, LinePlot, MeshLinePlot, Plot, SmoothLinePlot
 from kivymd.app import MDApp
 from kivymd.uix.button import MDFlatButton
 from kivymd.uix.dialog import MDDialog
@@ -14,7 +14,7 @@ from kivymd.uix.screenmanager import ScreenManager
 from src.ai.train import ThreadedTrainer
 from src.gameList import GameDict, gameList
 from src.ui.game import Game
-from ui.gameModal import GameModal
+from src.ui.gameModal import GameModal
 
 KV = """
 <Manager>:
@@ -34,24 +34,49 @@ KV = """
                 col_force_default: True
     MDScreen:
         name: "progress"
+        id: progress_screen
 
-        MDProgressBar:
+        MDBoxLayout:
+            halign: "center"
             orientation: "vertical"
-            value: root.progress
+            id: box
+
+            MDRectangleFlatIconButton:
+                icon: "cancel"
+                text: "Cancel Training"
+                pos_hint: {"center_x": 0.5}
+
+            MDLabel:
+                font_size: "30sp"
+                id: training_txt
+                text: root.training_text
+                markup: True
+                pos_hint: {"center_x": 0.5}
+                size_hint_y: 0.5
+
 """
 
 Builder.load_string(KV)
 
 
 class Manager(ScreenManager):
-    dialog: MDDialog = None
-    progress = NumericProperty(0)
+    dialog: MDDialog = None  # type: ignore
+    training_text = StringProperty("")
 
     queue: multiprocessing.Queue
 
-    event: "multiprocessing.Event"
     trainer: ThreadedTrainer
     training: bool = False
+
+    graph: Graph
+    reward_plt: Plot
+    loss_plt: Plot
+    avg_plt: Plot
+
+    rewards: List[float] = []
+    losses: List[float] = []
+
+    training_txt_widget: Label
 
     def __init__(self, **kwargs):
         Clock.schedule_once(self.on_start)
@@ -63,7 +88,7 @@ class Manager(ScreenManager):
 
         if self.dialog:
             self.dialog.dismiss()
-            self.dialog = None
+            self.dialog = None  # type: ignore
 
         app = MDApp.get_running_app()
         self.dialog = MDDialog(
@@ -96,17 +121,40 @@ class Manager(ScreenManager):
             return
 
         self.trainer = ThreadedTrainer(
-            env_id, on_epoch=self.on_epoch, on_done=self.on_done
+            env_id,
+            on_epoch=self.on_epoch,
+            on_done=self.on_done,
+            on_update=self.on_update,
         )
         self.trainer.start()
         self.training = True
 
     def on_epoch(self, total_reward: float, total_loss: float):
-        print(total_reward, total_loss)
+        length = len(self.reward_plt.points)
+        self.reward_plt.points.append((length - 1, total_reward))
+        self.loss_plt.points.append((length - 1, total_loss))
+
+        self.rewards.append(total_reward)
+        self.losses.append(total_loss)
+
+        i = max(length, length - 25)
+        avg = sum(self.rewards[:i]) / max(25, length)
+        self.avg_plt.points.append((length - 1, avg))
+
+        highest = max(*self.rewards, *self.losses, 1)
+
+        self.graph.ymax = int(highest)
+
+        if length > 100:
+            self.graph.xmin = length - 100
+            self.graph.xmax = length
 
     def on_done(self):
         print("done training")
         self.training = False
+
+    def on_update(self, txt: str):
+        self.training_txt_widget.text = txt
 
     def on_start(self, *_, **__):
         grid = self.ids["images_grid"]
@@ -115,3 +163,34 @@ class Manager(ScreenManager):
             g = Game(game, on_press=self.on_game_press)
             g.on_press = self.on_game_press
             grid.add_widget(g)
+
+        self.reward_plt = SmoothLinePlot(color=[0, 1, 0, 1])
+        self.loss_plt = SmoothLinePlot(color=[1, 0, 0, 1])
+        self.avg_plt = SmoothLinePlot(color=[0, 0, 1, 1])
+
+        self.graph = Graph(
+            xlabel="Epoch",
+            ylabel="Value",
+            x_ticks_minor=5,
+            x_ticks_major=100,
+            x_grid_label=True,
+            x_grid=True,
+            y_ticks_major=1,
+            y_ticks_minor=1,
+            y_grid_label=True,
+            y_grid=True,
+            padding=5,
+            xmin=0,
+            xmax=100,
+            ymin=0,
+            ymax=1,
+            size_hint=(0.9, 0.9),
+        )
+
+        self.graph.add_plot(self.reward_plt)
+        self.graph.add_plot(self.loss_plt)
+        self.graph.add_plot(self.avg_plt)
+
+        self.ids["box"].add_widget(self.graph)
+
+        self.training_txt_widget = self.ids["training_txt"]
