@@ -29,6 +29,7 @@ class Trainer:
     MEMORY_SIZE = 50_000
 
     steps_done = 0
+    n_epochs = 0
     eps_threshold = EPS_START
 
     env: gym.Env[obs_type, int]
@@ -74,16 +75,15 @@ class Trainer:
         self.env = AtariWrapper(self.env)
         self.n_action = self.env.action_space.n  # type: ignore
 
-        if logging:
-            if use_ddqn:
-                methodname = f"double_{model}"
-            else:
-                methodname = model
-            self.log_dir = os.path.join(f"log_{env_name.split('/')[-1]}", methodname)
-            if not os.path.exists(self.log_dir):
-                os.makedirs(self.log_dir)
+        if use_ddqn:
+            methodname = f"double_{model}"
+        else:
+            methodname = model
+        self.log_dir = os.path.join(f"log_{env_name.split('/')[-1]}", methodname)
+        if not os.path.exists(self.log_dir):
+            os.makedirs(self.log_dir)
 
-            self.video = VideoRecorder(self.log_dir)
+        self.video = VideoRecorder(self.log_dir)
 
         if model == "dqn":
             self.policy_net = DQN(in_channels=4, n_actions=self.n_action).to(device)
@@ -148,7 +148,7 @@ class Trainer:
             if warmupstep > self.WARMUP:
                 break
 
-    def epoch(self, n_epoch: int) -> Tuple[float, float]:
+    def epoch(self) -> Tuple[float, float]:
         """Does one epoch of training
 
         Returns total reward and total loss for the epoch
@@ -164,16 +164,16 @@ class Trainer:
 
         done = False
         while not done:
-            reward, loss, done = self.step(n_epoch, obs)
+            reward, loss, done = self.step(obs)
 
             total_reward += reward
             total_loss += loss
 
+        self.n_epochs += 1
         return total_reward, total_loss
 
     def step(
         self,
-        n_epoch: int,
         obs: T.Tensor,
     ) -> Tuple[float, float, bool]:
         """Does a single step of an epoch
@@ -258,12 +258,16 @@ class Trainer:
         if self.steps_done % 1000 == 0:
             self.target_net.load_state_dict(self.policy_net.state_dict())
 
-        if self.logging and done and n_epoch % self.eval_freq == 0:
-            self.log(n_epoch)
+        if self.logging and done and self.n_epochs % self.eval_freq == 0:
+            self.log()
 
         return i_reward, loss.item(), n_done  # type: ignore
 
-    def log(self, n_epoch: int):
+    def log(self):
+        """Logs the performance of the model, records a video and saves the model
+
+        If logging is set to true this is called every 500 epochs by default
+        """
         with torch.no_grad():
             self.video.reset()
             evalenv = gym.make(self.env_name)
@@ -298,12 +302,25 @@ class Trainer:
                         obs = torch.from_numpy(obs).to(self.device)
                         obs = torch.stack((obs, obs, obs, obs)).unsqueeze(0)
             evalenv.close()
-            self.video.save(f"{n_epoch}.mp4")
+            self.video.save(f"{self.n_epochs}.mp4")
+
+            self.save()
+            print(f"Eval epoch {self.n_epochs}: Reward {evalreward}")
+
+    def save(self, file: str | None = None) -> bool:
+        """Saves the model and other data to a file
+
+        Returns if the save was successful
+        """
+        file = file if file is not None else self.log_dir
+        try:
             torch.save(
                 self.policy_net,
-                os.path.join(self.log_dir, f"model{n_epoch}.pth"),
+                os.path.join(file, f"model{self.n_epochs}.pth"),
             )
-            print(f"Eval epoch {n_epoch}: Reward {evalreward}")
+            return True
+        except:
+            return False
 
     def select_action(self, state: T.Tensor) -> T.Tensor:
         """
@@ -325,6 +342,30 @@ class Trainer:
                 return self.policy_net(state).max(1)[1].view(1, 1)
         else:
             return torch.tensor([[self.env.action_space.sample()]]).to(self.device)
+
+    def close(self):
+        """Closes the environment and frees up resources
+
+        You should call this once training is done to free up resources
+        But make sure to save before because this will delete the model and any other data
+        """
+
+        try:
+            self.env.close()
+            del self.env
+            del self.policy_net
+            del self.target_net
+            del self.optimizer
+            del self.memory
+            del self.video
+        except:
+            pass
+
+    def save_and_close(self):
+        """Saves and closes the environment"""
+
+        self.save()
+        self.close()
 
     def training_loop(
         self,

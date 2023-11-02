@@ -1,3 +1,4 @@
+import threading
 import time
 from datetime import timedelta
 from threading import Thread
@@ -9,7 +10,25 @@ from IPython.core.magics.execution import _format_time
 from src.ai.trainer import Trainer
 
 
-class ThreadedTrainer(Thread):
+class StoppableThread(threading.Thread):
+    """Thread class with a stop() method. The thread itself has to check
+    regularly for the stopped() condition.
+
+    From stack overflow -> https://stackoverflow.com/a/325528
+    """
+
+    def __init__(self, *args, **kwargs):
+        super(StoppableThread, self).__init__(*args, **kwargs)
+        self._stop_event = threading.Event()
+
+    def stop(self):
+        self._stop_event.set()
+
+    def stopped(self):
+        return self._stop_event.is_set()
+
+
+class ThreadedTrainer(StoppableThread):
     trainer: Trainer
 
     def __init__(
@@ -36,7 +55,12 @@ class ThreadedTrainer(Thread):
 
         start_time = time.monotonic()
         for n_epoch in range(self.trainer.epochs):
-            total_reward, total_loss = self.trainer.epoch(n_epoch)
+            if self.stopped():
+                self.on_update("Stopping training")
+                self.trainer.save_and_close()
+                break
+
+            total_reward, total_loss = self.trainer.epoch()
             end_time = time.monotonic()
             delta = timedelta(seconds=end_time - start_time)
 
@@ -47,4 +71,5 @@ class ThreadedTrainer(Thread):
             self.on_epoch(total_reward, total_loss)
             start_time = time.monotonic()
 
+        self.trainer.save_and_close()
         self.on_done()

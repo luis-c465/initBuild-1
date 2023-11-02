@@ -45,6 +45,7 @@ KV = """
                 icon: "cancel"
                 text: "Cancel Training"
                 pos_hint: {"center_x": 0.5}
+                on_press: root.stop_training()
 
             MDLabel:
                 font_size: "30sp"
@@ -82,6 +83,11 @@ class Manager(ScreenManager):
         Clock.schedule_once(self.on_start)
 
         super().__init__(**kwargs)
+
+    def stop_training(self):
+        if self.training:
+            self.trainer.stop()
+            self.on_done()
 
     def on_game_press(self, data: GameDict, *_, **__):
         env_id = data["env"]
@@ -150,7 +156,11 @@ class Manager(ScreenManager):
             self.graph.xmax = length
 
     def on_done(self):
-        print("done training")
+        print("Done Training")
+
+        self.trainer = None
+
+        self.current = "main"
         self.training = False
 
     def on_update(self, txt: str):
